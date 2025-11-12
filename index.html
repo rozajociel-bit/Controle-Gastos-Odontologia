@@ -93,7 +93,30 @@
             margin-bottom: 20px;
         }
         .total h2 { margin: 0; font-size: 1.2em; color: #0056b3; }
-        .total p { font-size: 2.5em; font-weight: 700; color: #004a99; margin: 10px 0 0 0; }
+        /* Estilo para o Total Geral */
+        .total-geral { font-size: 2.5em; font-weight: 700; color: #004a99; margin: 10px 0 5px 0; }
+        
+        /* Estilos para as porcentagens */
+        .porcentagens-grid {
+            display: flex;
+            justify-content: space-around;
+            padding-top: 10px;
+            border-top: 1px solid #cceeff;
+            margin-top: 15px;
+        }
+        .porcentagens-grid div {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #333;
+        }
+        .porcentagens-grid span {
+            display: block;
+            font-size: 0.9em;
+            font-weight: 400;
+            color: #555;
+            margin-top: 2px;
+        }
+
 
         /* --- LISTA HEADER (COM BOTÃO LIMPAR) --- */
         .header-lista {
@@ -182,8 +205,19 @@
 
         <div class="total">
             <h2>Total Gasto este Mês</h2>
-            <p id="total-mensal">R$ 0,00</p>
-        </div>
+            <p id="total-mensal" class="total-geral">R$ 0,00</p>
+            
+            <div class="porcentagens-grid">
+                <div>
+                    80% CAST
+                    <span id="cast-80">R$ 0,00</span>
+                </div>
+                <div>
+                    20% Paciente
+                    <span id="paciente-20">R$ 0,00</span>
+                </div>
+            </div>
+            </div>
 
         <div id="lista-gastos">
             <div class="header-lista">
@@ -198,7 +232,7 @@
 
     <script>
         // =========================================================================
-        // CHAVES DE CONEXÃO SUPABASE
+        // CHAVES DE CONEXÃO SUPABASE (NÃO ALTERAR A PARTIR DESTE PONTO)
         // =========================================================================
 
         const SUPABASE_URL = 'https://kufrvegwvihmadbcwjxb.supabase.co'; 
@@ -207,7 +241,7 @@
         const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         // =========================================================================
-        // LÓGICA DO SISTEMA
+        // LÓGICA DO SISTEMA (ADICIONADA LÓGICA DE PORCENTAGEM)
         // =========================================================================
 
         const diasDaSemana = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
@@ -218,14 +252,17 @@
         }
 
         function formatarData(dataString) {
-            // Garante que a data seja exibida em dd/mm/yyyy
             const [ano, mes, dia] = dataString.split('-');
             return `${dia}/${mes}/${ano}`;
         }
 
-        // --- FUNÇÃO 1: CARREGAR DADOS DO SUPABASE ---
+        // --- FUNÇÃO 1: CARREGAR DADOS E CALCULAR PORCENTAGENS ---
         async function carregarGastos() {
             const totalMensalP = document.getElementById('total-mensal');
+            // Novos seletores
+            const cast80Span = document.getElementById('cast-80');
+            const paciente20Span = document.getElementById('paciente-20');
+            
             const listaUl = document.getElementById('lista-ul');
             const hoje = new Date();
             const mesAtualChave = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
@@ -233,17 +270,15 @@
             listaUl.innerHTML = "";
             let total = 0;
 
-            // Busca os dados da tabela 'lancamentos' filtrando pelo mês atual
             const { data: gastosDoMes, error } = await supabase
                 .from('lancamentos')
                 .select('*')
                 .eq('mes_chave', mesAtualChave)
-                .order('data', { ascending: false }); // Ordena pela data mais recente
+                .order('data', { ascending: false }); 
 
             if (error) {
                 console.error('Erro ao carregar dados:', error);
                 listaUl.innerHTML = `<li>Erro ao carregar dados: ${error.message}</li>`;
-                // Tenta carregar dados do localStorage como fallback, se houver
                 return;
             }
 
@@ -267,7 +302,6 @@
                     btnRemover.textContent = 'X';
                     btnRemover.title = 'Remover este lançamento';
                     
-                    // Chama removerGasto passando o ID (chave primária) do Supabase
                     btnRemover.addEventListener('click', () => {
                         removerGasto(gasto.id); 
                     });
@@ -283,7 +317,14 @@
                 });
             }
 
+            // CALCULA AS PORCENTAGENS
+            const valorCast80 = total * 0.80;
+            const valorPaciente20 = total * 0.20;
+
+            // ATUALIZA O HTML
             totalMensalP.textContent = formatarMoeda(total);
+            cast80Span.textContent = formatarMoeda(valorCast80);
+            paciente20Span.textContent = formatarMoeda(valorPaciente20);
             
             // Alerta de Limite
             if (total > LIMITE_ALERTA) {
@@ -294,7 +335,7 @@
             }
         }
 
-        // --- FUNÇÃO 2: REMOVER GASTO (USANDO ID DO BANCO) ---
+        // --- FUNÇÃO 2: REMOVER GASTO ---
         async function removerGasto(idParaRemover) {
             const confirmado = confirm("Você tem certeza que deseja remover este lançamento?");
             
@@ -302,7 +343,6 @@
                 return; 
             }
 
-            // Deleta o registro pelo ID
             const { error } = await supabase
                 .from('lancamentos')
                 .delete()
@@ -316,7 +356,7 @@
             carregarGastos();
         }
 
-        // --- Inicialização do Sistema quando o documento estiver pronto ---
+        // --- Inicialização do Sistema ---
         document.addEventListener('DOMContentLoaded', () => {
 
             const dataInput = document.getElementById('data-input');
@@ -363,7 +403,6 @@
 
                 const mesChave = data.substring(0, 7); // yyyy-mm
 
-                // Insere o novo registro no banco de dados
                 const { error } = await supabase
                     .from('lancamentos')
                     .insert([
@@ -395,7 +434,6 @@
                     const hoje = new Date();
                     const mesAtualChave = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 
-                    // Deleta todos os registros que têm a chave do mês atual
                     const { error, count } = await supabase
                         .from('lancamentos')
                         .delete()
